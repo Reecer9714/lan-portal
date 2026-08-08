@@ -18,6 +18,7 @@ LAN Portal redirects each shortcut to the configured host and port. The target s
 - Human-readable shortcut paths
 - Redirects to services on the same host or other LAN devices
 - HTTP and HTTPS targets
+- Captures and caches target service favicons when adding services
 - No Python packages beyond the standard library
 - Docker Compose / Arcane friendly
 - Configuration stored in a small JSON file
@@ -67,6 +68,8 @@ For another LAN device, provide `host`. For HTTPS targets, set `"scheme": "https
 ## Dashboard management
 
 Use **Add Service** on the dashboard to add entries without manually editing JSON. The included Compose configuration keeps `services.json` writable while mounting application code and static files read-only.
+
+When a service is added, LAN Portal attempts to fetch the target favicon from its homepage or `/favicon.ico`. Cached icons are stored in `favicons/`; the configured Unicode icon is still used when no favicon can be found.
 
 ## Security
 

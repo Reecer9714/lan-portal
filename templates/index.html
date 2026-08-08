@@ -42,39 +42,40 @@
 
             <div class="form-grid">
                 <label class="form-field">
-                    <span>Name</span>
+                    <span>Name <strong>Required</strong></span>
                     <input name="name" required autocomplete="off" placeholder="Jellyseerr">
                 </label>
 
                 <label class="form-field">
-                    <span>Path</span>
+                    <span>Path <strong>Required</strong></span>
                     <input name="path" required autocomplete="off" placeholder="jellyseerr" pattern="[A-Za-z0-9-]+">
                     <small>Used as /jellyseerr</small>
                 </label>
 
                 <label class="form-field">
-                    <span>Host</span>
+                    <span>Host <em>Optional</em></span>
                     <input name="host" autocomplete="off" placeholder="Leave blank for this server">
                     <small>Optional IP address or hostname</small>
                 </label>
 
                 <label class="form-field">
-                    <span>Port</span>
+                    <span>Port <strong>Required</strong></span>
                     <input name="port" type="number" min="1" max="65535" required placeholder="5055">
                 </label>
 
                 <label class="form-field form-field-wide">
-                    <span>Description</span>
+                    <span>Description <em>Optional</em></span>
                     <input name="description" autocomplete="off" placeholder="Media requests">
                 </label>
 
                 <label class="form-field form-field-wide">
-                    <span>Icon</span>
+                    <span>Icon <em>Optional</em></span>
                     <div class="icon-picker">
                         <div class="icon-input-row">
                             <div class="icon-preview" id="icon-preview" aria-hidden="true">&#9672;</div>
                             <input name="icon" id="service-icon-input" autocomplete="off" placeholder="Choose or type a Unicode icon" maxlength="4">
                         </div>
+                        <small>Used only if LAN Portal cannot capture a favicon from the target service.</small>
                         <div class="icon-picker-tools">
                             <input id="unicode-icon-search" type="search" autocomplete="off" placeholder="Search icons, names, or U+ codes">
                             <div class="icon-page-controls" aria-label="Unicode icon pages">
@@ -88,7 +89,7 @@
                 </label>
 
                 <label class="form-field">
-                    <span>Protocol</span>
+                    <span>Protocol <strong>Required</strong></span>
                     <select name="scheme">
                         <option value="http">HTTP</option>
                         <option value="https">HTTPS</option>

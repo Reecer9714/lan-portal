@@ -8,6 +8,7 @@ services:
     volumes:
       - ./portal.py:/app/portal.py:ro
       - ./services.json:/app/services.json
+      - ./favicons:/app/favicons
       - ./templates:/app/templates:ro
       - ./static:/app/static:ro
     working_dir: /app

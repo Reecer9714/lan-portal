@@ -129,6 +129,7 @@ h2 { font-size: 1.5rem; }
 }
 .service-card:hover { transform: translateY(-2px); background: var(--surface-hover); border-color: var(--border-hover); box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2); }
 .service-icon { display: grid; place-items: center; width: 54px; height: 54px; border: 1px solid var(--border); border-radius: 14px; background: #111827; font-size: 1.7rem; }
+.service-icon img { display: block; width: 32px; height: 32px; object-fit: contain; }
 .service-content { min-width: 0; }
 .service-name { overflow: hidden; color: var(--text); font-size: 1.05rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .service-description { margin-top: 5px; overflow: hidden; color: var(--muted); font-size: 0.9rem; line-height: 1.4; text-overflow: ellipsis; white-space: nowrap; }
@@ -173,7 +174,27 @@ footer { margin-top: 36px; color: var(--subtle); font-size: 0.8rem; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
 .form-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .form-field-wide { grid-column: 1 / -1; }
-.form-field > span { color: #cbd5e1; font-size: 0.83rem; font-weight: 650; }
+.form-field > span { display: flex; align-items: center; gap: 8px; color: #cbd5e1; font-size: 0.83rem; font-weight: 650; }
+.form-field > span strong,
+.form-field > span em {
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: 0.64rem;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+.form-field > span strong {
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    background: rgba(96, 165, 250, 0.12);
+    color: #bfdbfe;
+}
+.form-field > span em {
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(148, 163, 184, 0.08);
+    color: var(--subtle);
+}
 .form-field small { color: var(--subtle); font-size: 0.75rem; line-height: 1.35; }
 .form-field input, .form-field select { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #334155; border-radius: var(--radius-small); background: rgba(15, 23, 42, 0.86); color: var(--text); outline: none; transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease; }
 .form-field input::placeholder { color: #526177; }

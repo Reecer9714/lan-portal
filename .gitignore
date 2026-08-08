@@ -1,4 +1,5 @@
 services.json
+favicons/
 .env
 __pycache__/
 *.pyc
