@@ -9,6 +9,7 @@ const dialogTitle = document.querySelector("#service-dialog-title");
 const submitButton = document.querySelector("#submit-service");
 const nameInput = form.elements.name;
 const pathInput = form.elements.path;
+const originalPathInput = form.elements.originalPath;
 const iconInput = document.querySelector("#service-icon-input");
 const iconPreview = document.querySelector("#icon-preview");
 const iconGrid = document.querySelector("#unicode-icon-grid");
@@ -150,6 +151,7 @@ function resetDialog() {
     form.reset();
     pathEdited = false;
     editingPath = null;
+    originalPathInput.value = "";
     dialogTitle.textContent = "Add Service";
     submitButton.textContent = "Add Service";
     updateIconPreview();
@@ -205,6 +207,7 @@ function getPathFromServiceCard(serviceCard) {
 function openEditDialog(service) {
     resetDialog();
     editingPath = service.path;
+    originalPathInput.value = editingPath;
     pathEdited = true;
     dialogTitle.textContent = "Edit Service";
     submitButton.textContent = "Save Changes";
@@ -291,7 +294,13 @@ form.addEventListener("submit", async (event) => {
     const data = Object.fromEntries(new FormData(form).entries());
     data.port = Number(data.port);
     data.path = data.path.trim().replace(/^\/+|\/+$/g, "");
-    if (editingPath) data.originalPath = editingPath;
+    const originalPath = (data.originalPath || editingPath || "").trim().replace(/^\/+|\/+$/g, "");
+    if (editingPath && !originalPath) {
+        showError("Unable to save edit because the original service path is missing.");
+        return;
+    }
+    if (editingPath) data.originalPath = originalPath;
+    if (!data.originalPath) delete data.originalPath;
 
     if (!data.host.trim()) delete data.host;
     if (!data.description.trim()) delete data.description;

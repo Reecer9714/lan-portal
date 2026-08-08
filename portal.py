@@ -309,6 +309,8 @@ class PortalHandler(BaseHTTPRequestHandler):
         try:
             payload = self.read_json_body()
             original_path = str(payload.get("originalPath", "")).strip().strip("/")
+            if "originalPath" in payload and not original_path:
+                raise ValueError("Original service path is required when editing.")
             if original_path:
                 return self.update_service_from_payload(original_path, payload)
 
@@ -355,7 +357,8 @@ class PortalHandler(BaseHTTPRequestHandler):
                 return
 
             existing_service = services[service_index]
-            service = validate_service(payload, services, original_path=original_path)
+            other_services = services[:service_index] + services[service_index + 1:]
+            service = validate_service(payload, other_services)
             same_target = all(
                 existing_service.get(key) == service.get(key)
                 for key in ("path", "host", "port", "scheme")
