@@ -80,6 +80,10 @@
                             <input name="icon" id="service-icon-input" autocomplete="off" placeholder="Choose or type a Unicode icon" maxlength="4">
                         </div>
                         <small>Used only if LAN Portal cannot capture a favicon from the target service.</small>
+                        <div class="favicon-tools">
+                            <button class="secondary-button" id="fetch-favicon" type="button" hidden>Fetch favicon</button>
+                            <span class="favicon-status" id="favicon-status" aria-live="polite"></span>
+                        </div>
                         <div class="icon-picker-tools">
                             <input id="unicode-icon-search" type="search" autocomplete="off" placeholder="Search icons, names, or U+ codes">
                             <div class="icon-page-controls" aria-label="Unicode icon pages">

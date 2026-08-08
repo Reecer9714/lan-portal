@@ -307,6 +307,9 @@ footer { margin-top: 36px; color: var(--subtle); font-size: 0.8rem; }
 .form-field input:user-invalid { border-color: rgba(248, 113, 113, 0.8); }
 .icon-picker { display: grid; gap: 10px; }
 .icon-input-row { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; }
+.favicon-tools { display: flex; align-items: center; gap: 10px; min-height: 38px; }
+.favicon-tools .secondary-button { min-height: 36px; padding: 0 12px; font-size: 0.82rem; }
+.favicon-status { color: var(--subtle); font-size: 0.78rem; }
 .icon-picker-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .icon-page-controls { display: inline-flex; align-items: center; gap: 8px; }
 .icon-page-button { min-height: 38px; padding: 0 12px; font-size: 0.82rem; }
@@ -366,6 +369,7 @@ footer { margin-top: 36px; color: var(--subtle); font-size: 0.8rem; }
 .primary-button, .secondary-button { min-height: 42px; padding: 0 16px; border-radius: 10px; font-size: 0.9rem; font-weight: 650; transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease; }
 .primary-button { border: 1px solid rgba(96, 165, 250, 0.42); background: #2563eb; color: var(--accent-text); box-shadow: 0 8px 18px rgba(37, 99, 235, 0.2); }
 .primary-button:hover { background: #3b82f6; transform: translateY(-1px); }
+.primary-button:disabled, .secondary-button:disabled { cursor: wait; opacity: 0.58; transform: none; }
 .primary-button:active, .secondary-button:active { transform: translateY(0); }
 .secondary-button { border: 1px solid #334155; background: rgba(15, 23, 42, 0.32); color: #cbd5e1; }
 .secondary-button:hover { border-color: #475569; background: rgba(148, 163, 184, 0.1); color: #f8fafc; }

@@ -17,6 +17,8 @@ const iconSearch = document.querySelector("#unicode-icon-search");
 const iconPagePrev = document.querySelector("#icon-page-prev");
 const iconPageNext = document.querySelector("#icon-page-next");
 const iconPageStatus = document.querySelector("#icon-page-status");
+const fetchFaviconButton = document.querySelector("#fetch-favicon");
+const faviconStatus = document.querySelector("#favicon-status");
 const iconPageSize = 72;
 const defaultIcon = String.fromCodePoint(0x25c8);
 const priorityIconRanges = [
@@ -156,6 +158,10 @@ function resetDialog() {
     originalPathInput.value = "";
     dialogTitle.textContent = "Add Service";
     submitButton.textContent = "Add Service";
+    fetchFaviconButton.hidden = true;
+    fetchFaviconButton.disabled = false;
+    fetchFaviconButton.textContent = "Fetch favicon";
+    faviconStatus.textContent = "";
     updateIconPreview();
     clearError();
 }
@@ -378,6 +384,8 @@ function openEditDialog(service) {
     pathEdited = true;
     dialogTitle.textContent = "Edit Service";
     submitButton.textContent = "Save Changes";
+    fetchFaviconButton.hidden = false;
+    faviconStatus.textContent = service.favicon ? "Favicon cached" : "";
     form.elements.name.value = service.name || "";
     form.elements.path.value = service.path || "";
     form.elements.host.value = service.host || "";
@@ -428,6 +436,29 @@ iconSearch.addEventListener("input", () => {
 });
 iconPagePrev.addEventListener("click", () => changeIconPage(-1));
 iconPageNext.addEventListener("click", () => changeIconPage(1));
+fetchFaviconButton.addEventListener("click", async () => {
+    if (!editingPath) return;
+    clearError();
+    fetchFaviconButton.disabled = true;
+    fetchFaviconButton.textContent = "Fetching...";
+    faviconStatus.textContent = "";
+
+    try {
+        const response = await fetch(`/api/services/${encodeURIComponent(editingPath)}/favicon`, {
+            method: "POST"
+        });
+        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.error || "Unable to fetch favicon.");
+        }
+        faviconStatus.textContent = "Favicon cached";
+        window.location.reload();
+    } catch (error) {
+        showError(error.message);
+        fetchFaviconButton.disabled = false;
+        fetchFaviconButton.textContent = "Fetch favicon";
+    }
+});
 renderIconPicker();
 updateIconPreview();
 
@@ -485,6 +516,9 @@ dialog.addEventListener("click", (event) => {
 form.addEventListener("submit", async (event) => {
     event.preventDefault();
     clearError();
+    const idleSubmitText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = editingPath ? "Saving..." : "Adding...";
 
     const data = Object.fromEntries(new FormData(form).entries());
     data.port = Number(data.port);
@@ -492,6 +526,8 @@ form.addEventListener("submit", async (event) => {
     const originalPath = (data.originalPath || editingPath || "").trim().replace(/^\/+|\/+$/g, "");
     if (editingPath && !originalPath) {
         showError("Unable to save edit because the original service path is missing.");
+        submitButton.disabled = false;
+        submitButton.textContent = idleSubmitText;
         return;
     }
     if (editingPath) data.originalPath = originalPath;
@@ -523,5 +559,7 @@ form.addEventListener("submit", async (event) => {
         window.location.reload();
     } catch (error) {
         showError(error.message);
+        submitButton.disabled = false;
+        submitButton.textContent = idleSubmitText;
     }
 });

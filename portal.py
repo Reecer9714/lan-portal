@@ -147,7 +147,7 @@ def cache_service_favicon(service, request_host):
     try:
         FAVICON_CACHE_PATH.mkdir(parents=True, exist_ok=True)
     except OSError:
-        return
+        return False
 
     for favicon_url in discover_favicon_urls(target):
         try:
@@ -167,10 +167,11 @@ def cache_service_favicon(service, request_host):
             cache_path.write_bytes(data)
         except OSError as exc:
             log("ERROR", f"Unable to write favicon cache {cache_path}: {exc}")
-            return
+            return False
         service["favicon"] = cache_name
         log("INFO", f"Cached favicon for {service['path']} from {favicon_url} as {cache_name}")
-        return
+        return True
+    return False
 
 
 def render_service_cards(services):
@@ -297,6 +298,9 @@ class PortalHandler(BaseHTTPRequestHandler):
             return self.add_service()
         if path == "/api/services/reorder":
             return self.reorder_services()
+        if path.startswith("/api/services/") and path.endswith("/favicon"):
+            service_path = path.removeprefix("/api/services/").removesuffix("/favicon")
+            return self.fetch_service_favicon(unquote(service_path).strip("/"))
         self.send_json(404, {"error": "Endpoint not found."})
 
     def do_PUT(self):
@@ -367,7 +371,6 @@ class PortalHandler(BaseHTTPRequestHandler):
             config = load_config()
             services = config.setdefault("services", [])
             service = validate_service(payload, services)
-            cache_service_favicon(service, get_request_host(self.headers))
             services.append(service)
             save_config(config)
             log("INFO", f"Added service {service['path']} -> {build_target(service, get_request_host(self.headers))}")
@@ -418,6 +421,38 @@ class PortalHandler(BaseHTTPRequestHandler):
             log("ERROR", f"Failed to reorder services: {exc}")
             self.send_json(500, {"error": f"Failed to reorder services: {exc}"})
 
+    def fetch_service_favicon(self, service_path):
+        try:
+            service_path = service_path.strip("/")
+            if not service_path:
+                raise ValueError("Service path is required.")
+
+            config = load_config()
+            services = config.setdefault("services", [])
+            service_index = next(
+                (index for index, service in enumerate(services)
+                 if str(service.get("path", "")).strip("/").lower() == service_path.lower()),
+                None
+            )
+            if service_index is None:
+                self.send_json(404, {"error": "Service not found."})
+                return
+
+            service = dict(services[service_index])
+            if not cache_service_favicon(service, get_request_host(self.headers)):
+                self.send_json(502, {"error": "Unable to fetch a favicon for this service."})
+                return
+
+            services[service_index] = service
+            save_config(config)
+            log("INFO", f"Fetched favicon for {service['path']} ({build_target(service, get_request_host(self.headers))})")
+            self.send_json(200, service)
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+        except Exception as exc:
+            log("ERROR", f"Failed to fetch service favicon for {service_path}: {exc}")
+            self.send_json(500, {"error": f"Failed to fetch favicon: {exc}"})
+
     def update_service(self, original_path):
         try:
             original_path = original_path.strip("/")
@@ -455,11 +490,11 @@ class PortalHandler(BaseHTTPRequestHandler):
             service = validate_service(payload, other_services)
             same_target = all(
                 existing_service.get(key) == service.get(key)
-                for key in ("path", "host", "port", "scheme")
+                for key in ("host", "port", "scheme")
             )
-            if same_target and existing_service.get("favicon"):
-                service["favicon"] = existing_service["favicon"]
-            cache_service_favicon(service, get_request_host(self.headers))
+            if same_target:
+                if existing_service.get("favicon"):
+                    service["favicon"] = existing_service["favicon"]
             services[service_index] = service
             save_config(config)
             log("INFO", f"Updated service {original_path} -> {service['path']} ({build_target(service, get_request_host(self.headers))})")
