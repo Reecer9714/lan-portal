@@ -30,10 +30,15 @@ FAVICON_CONTENT_TYPES = {
 }
 
 
+def log(level, message):
+    print(f"{level} {message}", flush=True)
+
+
 class IconLinkParser(HTMLParser):
     def __init__(self):
         super().__init__()
         self.icons = []
+        self.mask_icons = []
 
     def handle_starttag(self, tag, attrs):
         if tag.lower() != "link":
@@ -44,6 +49,8 @@ class IconLinkParser(HTMLParser):
         href = values.get("href", "").strip()
         if href and "icon" in rels:
             self.icons.append(href)
+        elif href and "mask-icon" in rels:
+            self.mask_icons.append(href)
 
 
 def load_config():
@@ -58,7 +65,8 @@ def save_config(config):
         file.write("\n")
     try:
         temp_path.replace(CONFIG_PATH)
-    except OSError:
+    except OSError as exc:
+        log("WARN", f"Atomic config save failed for {CONFIG_PATH}: {exc}; rewriting in place")
         with CONFIG_PATH.open("w", encoding="utf-8") as file:
             json.dump(config, file, indent=2, ensure_ascii=False)
             file.write("\n")
@@ -94,7 +102,9 @@ def discover_favicon_urls(target):
     urls = []
     try:
         body, _, final_url = request_url(target, max_bytes=FAVICON_MAX_BYTES)
-    except (HTTPError, URLError, TimeoutError, socket.timeout, ValueError):
+        log("INFO", f"Discovered favicon page {final_url}")
+    except (HTTPError, URLError, TimeoutError, socket.timeout, ValueError) as exc:
+        log("WARN", f"Unable to inspect favicon links from {target}: {exc}")
         body = b""
         final_url = target
 
@@ -103,7 +113,10 @@ def discover_favicon_urls(target):
         try:
             parser.feed(body.decode("utf-8", errors="ignore"))
             urls.extend(urljoin(final_url, href) for href in parser.icons)
-        except Exception:
+            urls.extend(urljoin(final_url, href) for href in parser.mask_icons)
+            log("INFO", f"Found {len(parser.icons)} icon link(s) and {len(parser.mask_icons)} mask-icon link(s) at {final_url}")
+        except Exception as exc:
+            log("WARN", f"Unable to parse favicon links from {final_url}: {exc}")
             pass
 
     urls.append(urljoin(target.rstrip("/") + "/", "favicon.ico"))
@@ -131,10 +144,12 @@ def cache_service_favicon(service, request_host):
     for favicon_url in discover_favicon_urls(target):
         try:
             data, content_type, _ = request_url(favicon_url, max_bytes=FAVICON_MAX_BYTES)
-        except (HTTPError, URLError, TimeoutError, socket.timeout, ValueError):
+        except (HTTPError, URLError, TimeoutError, socket.timeout, ValueError) as exc:
+            log("WARN", f"Unable to cache favicon from {favicon_url}: {exc}")
             continue
 
         if not data:
+            log("WARN", f"Unable to cache favicon from {favicon_url}: empty response")
             continue
 
         extension = get_favicon_extension(favicon_url, content_type)
@@ -142,9 +157,11 @@ def cache_service_favicon(service, request_host):
         cache_path = FAVICON_CACHE_PATH / cache_name
         try:
             cache_path.write_bytes(data)
-        except OSError:
+        except OSError as exc:
+            log("ERROR", f"Unable to write favicon cache {cache_path}: {exc}")
             return
         service["favicon"] = cache_name
+        log("INFO", f"Cached favicon for {service['path']} from {favicon_url} as {cache_name}")
         return
 
 
@@ -333,12 +350,16 @@ class PortalHandler(BaseHTTPRequestHandler):
             cache_service_favicon(service, get_request_host(self.headers))
             services.append(service)
             save_config(config)
+            log("INFO", f"Added service {service['path']} -> {build_target(service, get_request_host(self.headers))}")
             self.send_json(201, service)
         except json.JSONDecodeError:
+            log("WARN", "Rejected service save: invalid JSON")
             self.send_json(400, {"error": "Invalid JSON."})
         except ValueError as exc:
+            log("WARN", f"Rejected service save: {exc}")
             self.send_json(400, {"error": str(exc)})
         except Exception as exc:
+            log("ERROR", f"Failed to save service: {exc}")
             self.send_json(500, {"error": f"Failed to save service: {exc}"})
 
     def update_service(self, original_path):
@@ -350,10 +371,13 @@ class PortalHandler(BaseHTTPRequestHandler):
             payload = self.read_json_body()
             return self.update_service_from_payload(original_path, payload)
         except json.JSONDecodeError:
+            log("WARN", f"Rejected service update for {original_path}: invalid JSON")
             self.send_json(400, {"error": "Invalid JSON."})
         except ValueError as exc:
+            log("WARN", f"Rejected service update for {original_path}: {exc}")
             self.send_json(400, {"error": str(exc)})
         except Exception as exc:
+            log("ERROR", f"Failed to update service {original_path}: {exc}")
             self.send_json(500, {"error": f"Failed to save service: {exc}"})
 
     def update_service_from_payload(self, original_path, payload):
@@ -366,6 +390,7 @@ class PortalHandler(BaseHTTPRequestHandler):
                 None
             )
             if service_index is None:
+                log("WARN", f"Rejected service update for {original_path}: service not found")
                 self.send_json(404, {"error": "Service not found."})
                 return
 
@@ -381,18 +406,23 @@ class PortalHandler(BaseHTTPRequestHandler):
             cache_service_favicon(service, get_request_host(self.headers))
             services[service_index] = service
             save_config(config)
+            log("INFO", f"Updated service {original_path} -> {service['path']} ({build_target(service, get_request_host(self.headers))})")
             self.send_json(200, service)
         except json.JSONDecodeError:
+            log("WARN", f"Rejected service update for {original_path}: invalid JSON")
             self.send_json(400, {"error": "Invalid JSON."})
         except ValueError as exc:
+            log("WARN", f"Rejected service update for {original_path}: {exc}")
             self.send_json(400, {"error": str(exc)})
         except Exception as exc:
+            log("ERROR", f"Failed to update service {original_path}: {exc}")
             self.send_json(500, {"error": f"Failed to save service: {exc}"})
 
     def redirect_service(self, request_path):
         try:
             config = load_config()
         except Exception as exc:
+            log("ERROR", f"Failed to load services for redirect: {exc}")
             return self.send_error(500, f"Failed to load services: {exc}")
 
         requested_path = request_path.strip("/")
@@ -405,6 +435,7 @@ class PortalHandler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             return
+        log("WARN", f"Shortcut not found: /{requested_path}")
         self.send_error(404, "Service not found")
 
     def send_json(self, status, payload):
@@ -417,10 +448,10 @@ class PortalHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format, *args):
-        print(f"{self.client_address[0]} - {format % args}")
+        log("INFO", f"{self.client_address[0]} - {format % args}")
 
 
 if __name__ == "__main__":
     server = ThreadingHTTPServer(("0.0.0.0", PORT), PortalHandler)
-    print(f"LAN Portal listening on port {PORT}")
+    log("INFO", f"LAN Portal listening on port {PORT}")
     server.serve_forever()
