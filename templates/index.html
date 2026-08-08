@@ -68,9 +68,23 @@
                     <input name="description" autocomplete="off" placeholder="Media requests">
                 </label>
 
-                <label class="form-field">
+                <label class="form-field form-field-wide">
                     <span>Icon</span>
-                    <input name="icon" autocomplete="off" placeholder="🎟️">
+                    <div class="icon-picker">
+                        <div class="icon-input-row">
+                            <div class="icon-preview" id="icon-preview" aria-hidden="true">&#9672;</div>
+                            <input name="icon" id="service-icon-input" autocomplete="off" placeholder="Choose or type a Unicode icon" maxlength="4">
+                        </div>
+                        <div class="icon-picker-tools">
+                            <input id="unicode-icon-search" type="search" autocomplete="off" placeholder="Search icons, names, or U+ codes">
+                            <div class="icon-page-controls" aria-label="Unicode icon pages">
+                                <button class="secondary-button icon-page-button" id="icon-page-prev" type="button">Previous</button>
+                                <span class="icon-page-status" id="icon-page-status" aria-live="polite"></span>
+                                <button class="secondary-button icon-page-button" id="icon-page-next" type="button">Next</button>
+                            </div>
+                        </div>
+                        <div class="unicode-icon-grid" id="unicode-icon-grid" aria-label="Unicode icon choices"></div>
+                    </div>
                 </label>
 
                 <label class="form-field">
