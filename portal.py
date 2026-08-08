@@ -56,7 +56,16 @@ def save_config(config):
     with temp_path.open("w", encoding="utf-8") as file:
         json.dump(config, file, indent=2, ensure_ascii=False)
         file.write("\n")
-    temp_path.replace(CONFIG_PATH)
+    try:
+        temp_path.replace(CONFIG_PATH)
+    except OSError:
+        with CONFIG_PATH.open("w", encoding="utf-8") as file:
+            json.dump(config, file, indent=2, ensure_ascii=False)
+            file.write("\n")
+        try:
+            temp_path.unlink()
+        except OSError:
+            pass
 
 
 def build_target(service, request_host):
