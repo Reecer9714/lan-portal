@@ -187,15 +187,24 @@ def render_service_cards(services):
         service_json = escape(json.dumps(service, ensure_ascii=False), quote=True)
         cards.append(f"""
         <article class="service-card-shell" data-service="{service_json}">
+            <button class="service-drag-handle" type="button" aria-label="Drag {name} to reorder" title="Drag to reorder"></button>
             <a class="service-card" href="/{path}" data-service-path="{path}" data-service="{service_json}">
                 <div class="service-icon">{icon_html}</div>
                 <div class="service-content">
                     <div class="service-name">{name}</div>
                     <div class="service-description">{description}</div>
                 </div>
-                <div class="service-arrow" aria-hidden="true">&rarr;</div>
             </a>
-            <button class="service-edit-button" type="button" data-service-path="{path}" aria-label="Edit {name}">Edit</button>
+            <div class="service-edit-controls" aria-label="Edit controls for {name}">
+                <button class="service-menu-button" type="button" data-service-path="{path}" aria-label="More reorder actions for {name}" aria-expanded="false">&#8942;</button>
+                <div class="service-action-menu" role="menu">
+                    <button type="button" role="menuitem" data-move-position="first" data-service-path="{path}">Move to top</button>
+                    <button type="button" role="menuitem" data-move-position="previous" data-service-path="{path}">Move up</button>
+                    <button type="button" role="menuitem" data-move-position="next" data-service-path="{path}">Move down</button>
+                    <button type="button" role="menuitem" data-move-position="last" data-service-path="{path}">Move to bottom</button>
+                </div>
+                <button class="service-edit-button" type="button" data-service-path="{path}" aria-label="Edit {name}">Edit</button>
+            </div>
         </article>
         """)
     return "\n".join(cards)
@@ -283,8 +292,11 @@ class PortalHandler(BaseHTTPRequestHandler):
         self.redirect_service(path)
 
     def do_POST(self):
-        if urlparse(self.path).path == "/api/services":
+        path = urlparse(self.path).path
+        if path == "/api/services":
             return self.add_service()
+        if path == "/api/services/reorder":
+            return self.reorder_services()
         self.send_json(404, {"error": "Endpoint not found."})
 
     def do_PUT(self):
@@ -369,6 +381,42 @@ class PortalHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             log("ERROR", f"Failed to save service: {exc}")
             self.send_json(500, {"error": f"Failed to save service: {exc}"})
+
+    def reorder_services(self):
+        try:
+            payload = self.read_json_body()
+            order = payload.get("paths")
+            if not isinstance(order, list) or not all(isinstance(path, str) for path in order):
+                raise ValueError("Service order must be a list of paths.")
+
+            normalized_order = [path.strip().strip("/") for path in order]
+            config = load_config()
+            services = config.setdefault("services", [])
+            services_by_path = {
+                str(service.get("path", "")).strip("/").lower(): service
+                for service in services
+            }
+            normalized_keys = [path.lower() for path in normalized_order]
+            existing_keys = list(services_by_path.keys())
+
+            if len(normalized_keys) != len(set(normalized_keys)):
+                raise ValueError("Service order contains duplicate paths.")
+            if set(normalized_keys) != set(existing_keys):
+                raise ValueError("Service order must include every existing service exactly once.")
+
+            config["services"] = [services_by_path[path] for path in normalized_keys]
+            save_config(config)
+            log("INFO", "Reordered services")
+            self.send_json(200, {"services": config["services"]})
+        except json.JSONDecodeError:
+            log("WARN", "Rejected service reorder: invalid JSON")
+            self.send_json(400, {"error": "Invalid JSON."})
+        except ValueError as exc:
+            log("WARN", f"Rejected service reorder: {exc}")
+            self.send_json(400, {"error": str(exc)})
+        except Exception as exc:
+            log("ERROR", f"Failed to reorder services: {exc}")
+            self.send_json(500, {"error": f"Failed to reorder services: {exc}"})
 
     def update_service(self, original_path):
         try:

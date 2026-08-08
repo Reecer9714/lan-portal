@@ -49,6 +49,8 @@ let pathEdited = false;
 let editMode = false;
 let editingPath = null;
 let services = [];
+let activeMenu = null;
+let dragState = null;
 
 function slugify(value) {
     return value
@@ -174,6 +176,7 @@ function setEditMode(enabled) {
     document.body.classList.toggle("is-editing-services", editMode);
     editModeButton.setAttribute("aria-pressed", String(editMode));
     editModeButton.textContent = editMode ? "Done Editing" : "Edit Mode";
+    updateMoveButtons();
 }
 
 async function loadServices() {
@@ -201,6 +204,170 @@ function getPathFromServiceCard(serviceCard) {
         return new URL(serviceCard.href, window.location.href).pathname.replace(/^\/+|\/+$/g, "");
     } catch (error) {
         return serviceCard.getAttribute("href").replace(/^\/+|\/+$/g, "");
+    }
+}
+
+function getServiceShells() {
+    return [...document.querySelectorAll(".service-card-shell")];
+}
+
+function getPathFromShell(shell) {
+    const editButton = shell.querySelector(".service-edit-button[data-service-path]");
+    const serviceCard = shell.querySelector(".service-card");
+    return (editButton && editButton.dataset.servicePath)
+        || getPathFromServiceCard(serviceCard);
+}
+
+function updateMoveButtons() {
+    const shells = getServiceShells();
+    shells.forEach((shell, index) => {
+        const firstButton = shell.querySelector('[data-move-position="first"]');
+        const previousMenuButton = shell.querySelector('[data-move-position="previous"]');
+        const nextMenuButton = shell.querySelector('[data-move-position="next"]');
+        const lastButton = shell.querySelector('[data-move-position="last"]');
+        if (firstButton) firstButton.disabled = index === 0;
+        if (previousMenuButton) previousMenuButton.disabled = index === 0;
+        if (nextMenuButton) nextMenuButton.disabled = index === shells.length - 1;
+        if (lastButton) lastButton.disabled = index === shells.length - 1;
+    });
+}
+
+function closeServiceMenu() {
+    if (!activeMenu) return;
+    activeMenu.classList.remove("is-open");
+    activeMenu.setAttribute("aria-expanded", "false");
+    activeMenu = null;
+}
+
+function toggleServiceMenu(button) {
+    if (activeMenu && activeMenu !== button) closeServiceMenu();
+    const open = button.classList.toggle("is-open");
+    button.setAttribute("aria-expanded", String(open));
+    activeMenu = open ? button : null;
+}
+
+async function saveServiceOrder() {
+    const paths = getServiceShells().map(getPathFromShell).filter(Boolean);
+    const response = await fetch("/api/services/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paths })
+    });
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.error || "Unable to save service order.");
+    }
+    services = result.services || services;
+}
+
+function restoreShellOrder(shells) {
+    const servicesGrid = document.querySelector(".services");
+    if (!servicesGrid) return;
+    shells.forEach((shell) => servicesGrid.append(shell));
+    updateMoveButtons();
+}
+
+function moveShellToIndex(shell, nextIndex) {
+    const shells = getServiceShells();
+    const currentIndex = shells.indexOf(shell);
+    const servicesGrid = document.querySelector(".services");
+    if (!servicesGrid || currentIndex < 0 || nextIndex < 0 || nextIndex >= shells.length || currentIndex === nextIndex) {
+        return false;
+    }
+
+    const targetShell = shells[nextIndex];
+    if (nextIndex < currentIndex) {
+        servicesGrid.insertBefore(shell, targetShell);
+    } else {
+        servicesGrid.insertBefore(shell, targetShell.nextSibling);
+    }
+    updateMoveButtons();
+    return true;
+}
+
+async function moveService(shell, nextIndex) {
+    const previousShells = getServiceShells();
+    if (!moveShellToIndex(shell, nextIndex)) return;
+    try {
+        await saveServiceOrder();
+    } catch (error) {
+        restoreShellOrder(previousShells);
+        window.alert(error.message);
+    }
+}
+
+function getMenuTargetIndex(shell, position) {
+    const shells = getServiceShells();
+    const currentIndex = shells.indexOf(shell);
+    if (currentIndex < 0) return currentIndex;
+    if (position === "first") return 0;
+    if (position === "previous") return currentIndex - 1;
+    if (position === "next") return currentIndex + 1;
+    if (position === "last") return shells.length - 1;
+    return currentIndex;
+}
+
+function startDrag(event, handle) {
+    if (!editMode) return;
+    const shell = handle.closest(".service-card-shell");
+    if (!shell) return;
+    event.preventDefault();
+    closeServiceMenu();
+    dragState = {
+        shell,
+        previousShells: getServiceShells(),
+        moved: false,
+        pointerId: event.pointerId
+    };
+    shell.classList.add("is-dragging");
+    handle.setPointerCapture(event.pointerId);
+}
+
+function dragService(event) {
+    if (!dragState) return;
+    const target = document.elementFromPoint(event.clientX, event.clientY);
+    const targetShell = target && target.closest(".service-card-shell");
+    if (!targetShell || targetShell === dragState.shell) return;
+
+    const shells = getServiceShells();
+    const targetIndex = shells.indexOf(targetShell);
+    const currentIndex = shells.indexOf(dragState.shell);
+    if (targetIndex < 0 || currentIndex < 0) return;
+
+    const targetRect = targetShell.getBoundingClientRect();
+    const draggedRect = dragState.shell.getBoundingClientRect();
+    const sameRow = Math.abs(draggedRect.top - targetRect.top) < Math.min(draggedRect.height, targetRect.height) / 2;
+    const insertAfter = sameRow
+        ? event.clientX > targetRect.left + targetRect.width / 2
+        : event.clientY > targetRect.top + targetRect.height / 2;
+    const servicesGrid = document.querySelector(".services");
+    if (!servicesGrid) return;
+
+    if (targetIndex < currentIndex) {
+        servicesGrid.insertBefore(dragState.shell, insertAfter ? targetShell.nextSibling : targetShell);
+    } else {
+        servicesGrid.insertBefore(dragState.shell, insertAfter ? targetShell.nextSibling : targetShell);
+    }
+    dragState.moved = true;
+    updateMoveButtons();
+}
+
+async function finishDrag(event) {
+    if (!dragState) return;
+    const { shell, previousShells, moved, pointerId } = dragState;
+    dragState = null;
+    shell.classList.remove("is-dragging");
+    try {
+        event.target.releasePointerCapture(pointerId);
+    } catch (error) {
+        // Pointer capture may already be released if the drag is cancelled by the browser.
+    }
+    if (!moved) return;
+    try {
+        await saveServiceOrder();
+    } catch (error) {
+        restoreShellOrder(previousShells);
+        window.alert(error.message);
     }
 }
 
@@ -265,6 +432,21 @@ renderIconPicker();
 updateIconPreview();
 
 document.addEventListener("click", (event) => {
+    const menuButton = event.target.closest(".service-menu-button");
+    if (menuButton) {
+        toggleServiceMenu(menuButton);
+        return;
+    }
+
+    const menuAction = event.target.closest("[data-move-position]");
+    if (menuAction) {
+        const shell = menuAction.closest(".service-card-shell");
+        const nextIndex = getMenuTargetIndex(shell, menuAction.dataset.movePosition);
+        closeServiceMenu();
+        if (shell) moveService(shell, nextIndex);
+        return;
+    }
+
     const editButton = event.target.closest(".service-edit-button");
     if (editButton) {
         editService(editButton.dataset.servicePath, editButton.closest(".service-card-shell"));
@@ -279,6 +461,19 @@ document.addEventListener("click", (event) => {
         const servicePath = shellEditButton ? shellEditButton.dataset.servicePath : getPathFromServiceCard(serviceCard);
         if (servicePath) editService(servicePath, shell || serviceCard);
     }
+
+    if (!event.target.closest(".service-edit-controls")) closeServiceMenu();
+});
+
+document.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest(".service-drag-handle");
+    if (handle) startDrag(event, handle);
+});
+document.addEventListener("pointermove", dragService);
+document.addEventListener("pointerup", finishDrag);
+document.addEventListener("pointercancel", finishDrag);
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeServiceMenu();
 });
 
 dialog.addEventListener("click", (event) => {
