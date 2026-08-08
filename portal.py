@@ -39,6 +39,7 @@ class IconLinkParser(HTMLParser):
         super().__init__()
         self.icons = []
         self.mask_icons = []
+        self.links = []
 
     def handle_starttag(self, tag, attrs):
         if tag.lower() != "link":
@@ -47,6 +48,11 @@ class IconLinkParser(HTMLParser):
         values = {name.lower(): value for name, value in attrs if value}
         rels = set(values.get("rel", "").lower().split())
         href = values.get("href", "").strip()
+        self.links.append({
+            "rel": values.get("rel", ""),
+            "type": values.get("type", ""),
+            "href": href,
+        })
         if href and "icon" in rels:
             self.icons.append(href)
         elif href and "mask-icon" in rels:
@@ -114,6 +120,8 @@ def discover_favicon_urls(target):
             parser.feed(body.decode("utf-8", errors="ignore"))
             urls.extend(urljoin(final_url, href) for href in parser.icons)
             urls.extend(urljoin(final_url, href) for href in parser.mask_icons)
+            for link in parser.links:
+                log("DEBUG", f"Link tag at {final_url}: rel={link['rel']!r} type={link['type']!r} href={link['href']!r}")
             log("INFO", f"Found {len(parser.icons)} icon link(s) and {len(parser.mask_icons)} mask-icon link(s) at {final_url}")
         except Exception as exc:
             log("WARN", f"Unable to parse favicon links from {final_url}: {exc}")
