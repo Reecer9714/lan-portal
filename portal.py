@@ -180,12 +180,16 @@ def render_dashboard(config):
     subtitle = escape(str(config.get("subtitle", "Services and devices on your network")))
     services_html = render_service_cards(config.get("services", []))
     asset_version = str(max((STATIC_PATH / "app.js").stat().st_mtime_ns, (STATIC_PATH / "style.css").stat().st_mtime_ns))
+    static_assets = (
+        f'<link rel="stylesheet" href="/static/style.css?v={asset_version}">\n'
+        f'    <script src="/static/app.js?v={asset_version}" defer></script>'
+    )
     return (
         template
         .replace("{{TITLE}}", title)
         .replace("{{SUBTITLE}}", subtitle)
         .replace("{{SERVICES}}", services_html)
-        .replace("{{ASSET_VERSION}}", asset_version)
+        .replace("{{STATIC_ASSETS}}", static_assets)
     )
 
 
