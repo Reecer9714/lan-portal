@@ -157,8 +157,9 @@ def render_service_cards(services):
         icon_html = icon
         if favicon:
             icon_html = f'<img src="/favicons/{escape(favicon)}" alt="" loading="lazy">'
+        service_json = escape(json.dumps(service, ensure_ascii=False), quote=True)
         cards.append(f"""
-        <article class="service-card-shell">
+        <article class="service-card-shell" data-service="{service_json}">
             <a class="service-card" href="/{path}">
                 <div class="service-icon">{icon_html}</div>
                 <div class="service-content">

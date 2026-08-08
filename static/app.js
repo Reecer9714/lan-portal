@@ -183,6 +183,15 @@ async function loadServices() {
     services = result.services || [];
 }
 
+function getServiceFromShell(shell) {
+    if (!shell || !shell.dataset.service) return null;
+    try {
+        return JSON.parse(shell.dataset.service);
+    } catch (error) {
+        return null;
+    }
+}
+
 function openEditDialog(service) {
     resetDialog();
     editingPath = service.path;
@@ -201,14 +210,23 @@ function openEditDialog(service) {
     nameInput.focus();
 }
 
-async function editService(path) {
+async function editService(path, shell) {
     try {
         clearError();
-        if (!services.length) await loadServices();
-        const service = services.find((item) => String(item.path).replace(/^\/+|\/+$/g, "") === path);
+        let service = getServiceFromShell(shell);
+        if (!service) {
+            if (!services.length) await loadServices();
+            service = services.find((item) => String(item.path).replace(/^\/+|\/+$/g, "") === path);
+        }
         if (!service) throw new Error("Service not found.");
         openEditDialog(service);
     } catch (error) {
+        if (!dialog.open) {
+            resetDialog();
+            dialogTitle.textContent = "Edit Service";
+            submitButton.textContent = "Save Changes";
+            dialog.showModal();
+        }
         showError(error.message);
     }
 }
@@ -236,7 +254,7 @@ updateIconPreview();
 document.addEventListener("click", (event) => {
     const editButton = event.target.closest(".service-edit-button");
     if (editButton) {
-        editService(editButton.dataset.servicePath);
+        editService(editButton.dataset.servicePath, editButton.closest(".service-card-shell"));
         return;
     }
 
@@ -245,7 +263,7 @@ document.addEventListener("click", (event) => {
         event.preventDefault();
         const shell = serviceCard.closest(".service-card-shell");
         const shellEditButton = shell && shell.querySelector(".service-edit-button");
-        if (shellEditButton) editService(shellEditButton.dataset.servicePath);
+        if (shellEditButton) editService(shellEditButton.dataset.servicePath, shell);
     }
 });
 
