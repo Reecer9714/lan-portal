@@ -179,7 +179,14 @@ def render_dashboard(config):
     title = escape(str(config.get("title", "Home Server")))
     subtitle = escape(str(config.get("subtitle", "Services and devices on your network")))
     services_html = render_service_cards(config.get("services", []))
-    return template.replace("{{TITLE}}", title).replace("{{SUBTITLE}}", subtitle).replace("{{SERVICES}}", services_html)
+    asset_version = str(max((STATIC_PATH / "app.js").stat().st_mtime_ns, (STATIC_PATH / "style.css").stat().st_mtime_ns))
+    return (
+        template
+        .replace("{{TITLE}}", title)
+        .replace("{{SUBTITLE}}", subtitle)
+        .replace("{{SERVICES}}", services_html)
+        .replace("{{ASSET_VERSION}}", asset_version)
+    )
 
 
 def validate_service(payload, existing_services, original_path=None):
