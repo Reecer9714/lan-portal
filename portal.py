@@ -160,7 +160,7 @@ def render_service_cards(services):
         service_json = escape(json.dumps(service, ensure_ascii=False), quote=True)
         cards.append(f"""
         <article class="service-card-shell" data-service="{service_json}">
-            <a class="service-card" href="/{path}">
+            <a class="service-card" href="/{path}" data-service-path="{path}" data-service="{service_json}">
                 <div class="service-icon">{icon_html}</div>
                 <div class="service-content">
                     <div class="service-name">{name}</div>

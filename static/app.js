@@ -183,12 +183,22 @@ async function loadServices() {
     services = result.services || [];
 }
 
-function getServiceFromShell(shell) {
-    if (!shell || !shell.dataset.service) return null;
+function getServiceFromElement(element) {
+    if (!element || !element.dataset.service) return null;
     try {
-        return JSON.parse(shell.dataset.service);
+        return JSON.parse(element.dataset.service);
     } catch (error) {
         return null;
+    }
+}
+
+function getPathFromServiceCard(serviceCard) {
+    if (!serviceCard) return "";
+    if (serviceCard.dataset.servicePath) return serviceCard.dataset.servicePath;
+    try {
+        return new URL(serviceCard.href, window.location.href).pathname.replace(/^\/+|\/+$/g, "");
+    } catch (error) {
+        return serviceCard.getAttribute("href").replace(/^\/+|\/+$/g, "");
     }
 }
 
@@ -213,7 +223,7 @@ function openEditDialog(service) {
 async function editService(path, shell) {
     try {
         clearError();
-        let service = getServiceFromShell(shell);
+        let service = getServiceFromElement(shell);
         if (!service) {
             if (!services.length) await loadServices();
             service = services.find((item) => String(item.path).replace(/^\/+|\/+$/g, "") === path);
@@ -263,7 +273,8 @@ document.addEventListener("click", (event) => {
         event.preventDefault();
         const shell = serviceCard.closest(".service-card-shell");
         const shellEditButton = shell && shell.querySelector(".service-edit-button");
-        if (shellEditButton) editService(shellEditButton.dataset.servicePath, shell);
+        const servicePath = shellEditButton ? shellEditButton.dataset.servicePath : getPathFromServiceCard(serviceCard);
+        if (servicePath) editService(servicePath, shell || serviceCard);
     }
 });
 
