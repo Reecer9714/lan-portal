@@ -291,19 +291,26 @@ form.addEventListener("submit", async (event) => {
     const data = Object.fromEntries(new FormData(form).entries());
     data.port = Number(data.port);
     data.path = data.path.trim().replace(/^\/+|\/+$/g, "");
+    if (editingPath) data.originalPath = editingPath;
 
     if (!data.host.trim()) delete data.host;
     if (!data.description.trim()) delete data.description;
     if (!data.icon.trim()) delete data.icon;
 
     try {
-        const response = await fetch(editingPath ? `/api/services/${encodeURIComponent(editingPath)}` : "/api/services", {
-            method: editingPath ? "PUT" : "POST",
+        const response = await fetch("/api/services", {
+            method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         });
 
-        const result = await response.json();
+        const responseText = await response.text();
+        let result = {};
+        try {
+            result = responseText ? JSON.parse(responseText) : {};
+        } catch (error) {
+            throw new Error(response.ok ? "Server returned an invalid response." : "Server returned an HTML error page.");
+        }
 
         if (!response.ok) {
             throw new Error(result.error || "Unable to add service.");

@@ -308,6 +308,10 @@ class PortalHandler(BaseHTTPRequestHandler):
     def add_service(self):
         try:
             payload = self.read_json_body()
+            original_path = str(payload.get("originalPath", "")).strip().strip("/")
+            if original_path:
+                return self.update_service_from_payload(original_path, payload)
+
             config = load_config()
             services = config.setdefault("services", [])
             service = validate_service(payload, services)
@@ -329,6 +333,16 @@ class PortalHandler(BaseHTTPRequestHandler):
                 raise ValueError("Service path is required.")
 
             payload = self.read_json_body()
+            return self.update_service_from_payload(original_path, payload)
+        except json.JSONDecodeError:
+            self.send_json(400, {"error": "Invalid JSON."})
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+        except Exception as exc:
+            self.send_json(500, {"error": f"Failed to save service: {exc}"})
+
+    def update_service_from_payload(self, original_path, payload):
+        try:
             config = load_config()
             services = config.setdefault("services", [])
             service_index = next(
