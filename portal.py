@@ -83,24 +83,26 @@ def request_url(url, max_bytes=None):
     request = Request(url, headers={"User-Agent": "LAN Portal favicon fetcher"})
     with urlopen(request, timeout=FAVICON_TIMEOUT_SECONDS) as response:
         content_type = response.headers.get_content_type()
+        final_url = response.geturl()
         data = response.read((max_bytes or FAVICON_MAX_BYTES) + 1)
     if max_bytes and len(data) > max_bytes:
         raise ValueError("Favicon response is too large.")
-    return data, content_type
+    return data, content_type, final_url
 
 
 def discover_favicon_urls(target):
     urls = []
     try:
-        body, _ = request_url(target, max_bytes=FAVICON_MAX_BYTES)
+        body, _, final_url = request_url(target, max_bytes=FAVICON_MAX_BYTES)
     except (HTTPError, URLError, TimeoutError, socket.timeout, ValueError):
         body = b""
+        final_url = target
 
     if body:
         parser = IconLinkParser()
         try:
             parser.feed(body.decode("utf-8", errors="ignore"))
-            urls.extend(urljoin(target, href) for href in parser.icons)
+            urls.extend(urljoin(final_url, href) for href in parser.icons)
         except Exception:
             pass
 
@@ -128,7 +130,7 @@ def cache_service_favicon(service, request_host):
 
     for favicon_url in discover_favicon_urls(target):
         try:
-            data, content_type = request_url(favicon_url, max_bytes=FAVICON_MAX_BYTES)
+            data, content_type, _ = request_url(favicon_url, max_bytes=FAVICON_MAX_BYTES)
         except (HTTPError, URLError, TimeoutError, socket.timeout, ValueError):
             continue
 
