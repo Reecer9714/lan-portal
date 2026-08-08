@@ -15,6 +15,20 @@ const iconPageNext = document.querySelector("#icon-page-next");
 const iconPageStatus = document.querySelector("#icon-page-status");
 const iconPageSize = 72;
 const defaultIcon = String.fromCodePoint(0x25c8);
+const priorityIconRanges = [
+    { name: "Objects", keywords: "tool lock key computer disk folder media service", start: 0x1f4bb, end: 0x1f4c2 },
+    { name: "Objects", keywords: "chart mail package notebook service", start: 0x1f4c3, end: 0x1f4e6 },
+    { name: "Objects", keywords: "satellite antenna signal media service", start: 0x1f4e1, end: 0x1f4fa },
+    { name: "Objects", keywords: "lock key tool wrench service", start: 0x1f510, end: 0x1f527 },
+    { name: "Objects", keywords: "network computer printer disk server", start: 0x1f5a5, end: 0x1f5c4 },
+    { name: "Supplemental Symbols", keywords: "tools toolbox compass service", start: 0x1f9ed, end: 0x1f9f0 },
+    { name: "Supplemental Symbols", keywords: "shield service security", start: 0x1f6e1, end: 0x1f6e1 },
+    { name: "Transport and Map", keywords: "rocket satellite service", start: 0x1f680, end: 0x1f6f0 },
+    { name: "Miscellaneous Symbols", keywords: "weather music game tool gear star phone warning service", start: 0x2600, end: 0x26a1 },
+    { name: "Dingbats", keywords: "check mark cross arrow star decorative office", start: 0x2700, end: 0x2728 },
+    { name: "Geometric Shapes", keywords: "shape circle square triangle diamond symbol", start: 0x25a0, end: 0x25c9 },
+    { name: "Arrows", keywords: "arrow direction navigation pointer", start: 0x2190, end: 0x21aa }
+];
 const iconRanges = [
     { name: "Geometric Shapes", keywords: "shape circle square triangle diamond symbol", start: 0x25a0, end: 0x25ff },
     { name: "Miscellaneous Symbols", keywords: "weather music game tool gear star phone warning service", start: 0x2600, end: 0x26ff },
@@ -56,8 +70,13 @@ function selectIcon(icon) {
 
 function buildIconSet() {
     const icons = [];
-    iconRanges.forEach((range) => {
+    const seenCodePoints = new Set();
+
+    [...priorityIconRanges, ...iconRanges].forEach((range) => {
         for (let codePoint = range.start; codePoint <= range.end; codePoint += 1) {
+            if (seenCodePoints.has(codePoint)) continue;
+            seenCodePoints.add(codePoint);
+
             const icon = String.fromCodePoint(codePoint);
             icons.push({
                 icon,
