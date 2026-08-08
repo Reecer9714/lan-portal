@@ -8,7 +8,7 @@ from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 CONFIG_PATH = Path(os.environ.get("CONFIG_PATH", "/app/services.json"))
@@ -158,14 +158,17 @@ def render_service_cards(services):
         if favicon:
             icon_html = f'<img src="/favicons/{escape(favicon)}" alt="" loading="lazy">'
         cards.append(f"""
-        <a class="service-card" href="/{path}">
-            <div class="service-icon">{icon_html}</div>
-            <div class="service-content">
-                <div class="service-name">{name}</div>
-                <div class="service-description">{description}</div>
-            </div>
-            <div class="service-arrow" aria-hidden="true">&rarr;</div>
-        </a>
+        <article class="service-card-shell">
+            <a class="service-card" href="/{path}">
+                <div class="service-icon">{icon_html}</div>
+                <div class="service-content">
+                    <div class="service-name">{name}</div>
+                    <div class="service-description">{description}</div>
+                </div>
+                <div class="service-arrow" aria-hidden="true">&rarr;</div>
+            </a>
+            <button class="service-edit-button" type="button" data-service-path="{path}" aria-label="Edit {name}">Edit</button>
+        </article>
         """)
     return "\n".join(cards)
 
@@ -178,7 +181,7 @@ def render_dashboard(config):
     return template.replace("{{TITLE}}", title).replace("{{SUBTITLE}}", subtitle).replace("{{SERVICES}}", services_html)
 
 
-def validate_service(payload, existing_services):
+def validate_service(payload, existing_services, original_path=None):
     if not isinstance(payload, dict):
         raise ValueError("Request must be a JSON object.")
 
@@ -200,6 +203,8 @@ def validate_service(payload, existing_services):
 
     for service in existing_services:
         existing_path = str(service.get("path", "")).strip("/")
+        if original_path and existing_path.lower() == original_path.lower():
+            continue
         if existing_path.lower() == path.lower():
             raise ValueError(f'A service using "/{path}" already exists.')
 
@@ -241,6 +246,12 @@ class PortalHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         if urlparse(self.path).path == "/api/services":
             return self.add_service()
+        self.send_json(404, {"error": "Endpoint not found."})
+
+    def do_PUT(self):
+        path = urlparse(self.path).path
+        if path.startswith("/api/services/"):
+            return self.update_service(unquote(path.removeprefix("/api/services/")))
         self.send_json(404, {"error": "Endpoint not found."})
 
     def serve_dashboard(self):
@@ -285,15 +296,17 @@ class PortalHandler(BaseHTTPRequestHandler):
         except Exception as exc:
             self.send_json(500, {"error": str(exc)})
 
+    def read_json_body(self):
+        content_length = int(self.headers.get("Content-Length", "0"))
+        if content_length <= 0:
+            raise ValueError("Request body is empty.")
+        if content_length > 65536:
+            raise ValueError("Request body is too large.")
+        return json.loads(self.rfile.read(content_length).decode("utf-8"))
+
     def add_service(self):
         try:
-            content_length = int(self.headers.get("Content-Length", "0"))
-            if content_length <= 0:
-                raise ValueError("Request body is empty.")
-            if content_length > 65536:
-                raise ValueError("Request body is too large.")
-
-            payload = json.loads(self.rfile.read(content_length).decode("utf-8"))
+            payload = self.read_json_body()
             config = load_config()
             services = config.setdefault("services", [])
             service = validate_service(payload, services)
@@ -301,6 +314,43 @@ class PortalHandler(BaseHTTPRequestHandler):
             services.append(service)
             save_config(config)
             self.send_json(201, service)
+        except json.JSONDecodeError:
+            self.send_json(400, {"error": "Invalid JSON."})
+        except ValueError as exc:
+            self.send_json(400, {"error": str(exc)})
+        except Exception as exc:
+            self.send_json(500, {"error": f"Failed to save service: {exc}"})
+
+    def update_service(self, original_path):
+        try:
+            original_path = original_path.strip("/")
+            if not original_path:
+                raise ValueError("Service path is required.")
+
+            payload = self.read_json_body()
+            config = load_config()
+            services = config.setdefault("services", [])
+            service_index = next(
+                (index for index, service in enumerate(services)
+                 if str(service.get("path", "")).strip("/").lower() == original_path.lower()),
+                None
+            )
+            if service_index is None:
+                self.send_json(404, {"error": "Service not found."})
+                return
+
+            existing_service = services[service_index]
+            service = validate_service(payload, services, original_path=original_path)
+            same_target = all(
+                existing_service.get(key) == service.get(key)
+                for key in ("path", "host", "port", "scheme")
+            )
+            if same_target and existing_service.get("favicon"):
+                service["favicon"] = existing_service["favicon"]
+            cache_service_favicon(service, get_request_host(self.headers))
+            services[service_index] = service
+            save_config(config)
+            self.send_json(200, service)
         except json.JSONDecodeError:
             self.send_json(400, {"error": "Invalid JSON."})
         except ValueError as exc:

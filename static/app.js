@@ -1,9 +1,12 @@
 const dialog = document.querySelector("#service-dialog");
 const form = document.querySelector("#service-form");
 const addButton = document.querySelector("#add-service");
+const editModeButton = document.querySelector("#edit-mode");
 const cancelButton = document.querySelector("#cancel-service");
 const closeButton = document.querySelector("#close-service");
 const errorBox = document.querySelector("#form-error");
+const dialogTitle = document.querySelector("#service-dialog-title");
+const submitButton = document.querySelector("#submit-service");
 const nameInput = form.elements.name;
 const pathInput = form.elements.path;
 const iconInput = document.querySelector("#service-icon-input");
@@ -42,6 +45,9 @@ const iconRanges = [
 const unicodeIcons = buildIconSet();
 let iconPage = 0;
 let pathEdited = false;
+let editMode = false;
+let editingPath = null;
+let services = [];
 
 function slugify(value) {
     return value
@@ -140,19 +146,75 @@ function clearError() {
     errorBox.hidden = true;
 }
 
-function closeDialog() {
-    dialog.close();
+function resetDialog() {
     form.reset();
     pathEdited = false;
+    editingPath = null;
+    dialogTitle.textContent = "Add Service";
+    submitButton.textContent = "Add Service";
     updateIconPreview();
     clearError();
 }
 
-addButton.addEventListener("click", () => {
-    clearError();
+function closeDialog() {
+    dialog.close();
+    resetDialog();
+}
+
+function openAddDialog() {
+    resetDialog();
     dialog.showModal();
     nameInput.focus();
-});
+}
+
+function setEditMode(enabled) {
+    editMode = enabled;
+    document.body.classList.toggle("is-editing-services", editMode);
+    editModeButton.setAttribute("aria-pressed", String(editMode));
+    editModeButton.textContent = editMode ? "Done Editing" : "Edit Mode";
+}
+
+async function loadServices() {
+    const response = await fetch("/api/services");
+    const result = await response.json();
+    if (!response.ok) {
+        throw new Error(result.error || "Unable to load services.");
+    }
+    services = result.services || [];
+}
+
+function openEditDialog(service) {
+    resetDialog();
+    editingPath = service.path;
+    pathEdited = true;
+    dialogTitle.textContent = "Edit Service";
+    submitButton.textContent = "Save Changes";
+    form.elements.name.value = service.name || "";
+    form.elements.path.value = service.path || "";
+    form.elements.host.value = service.host || "";
+    form.elements.port.value = service.port || "";
+    form.elements.description.value = service.description || "";
+    form.elements.icon.value = service.icon || "";
+    form.elements.scheme.value = service.scheme || "http";
+    updateIconPreview();
+    dialog.showModal();
+    nameInput.focus();
+}
+
+async function editService(path) {
+    try {
+        clearError();
+        if (!services.length) await loadServices();
+        const service = services.find((item) => String(item.path).replace(/^\/+|\/+$/g, "") === path);
+        if (!service) throw new Error("Service not found.");
+        openEditDialog(service);
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+addButton.addEventListener("click", openAddDialog);
+editModeButton.addEventListener("click", () => setEditMode(!editMode));
 
 cancelButton.addEventListener("click", closeDialog);
 closeButton.addEventListener("click", closeDialog);
@@ -170,6 +232,22 @@ iconPagePrev.addEventListener("click", () => changeIconPage(-1));
 iconPageNext.addEventListener("click", () => changeIconPage(1));
 renderIconPicker();
 updateIconPreview();
+
+document.addEventListener("click", (event) => {
+    const editButton = event.target.closest(".service-edit-button");
+    if (editButton) {
+        editService(editButton.dataset.servicePath);
+        return;
+    }
+
+    const serviceCard = event.target.closest(".service-card");
+    if (serviceCard && editMode) {
+        event.preventDefault();
+        const shell = serviceCard.closest(".service-card-shell");
+        const shellEditButton = shell && shell.querySelector(".service-edit-button");
+        if (shellEditButton) editService(shellEditButton.dataset.servicePath);
+    }
+});
 
 dialog.addEventListener("click", (event) => {
     if (event.target === dialog) {
@@ -190,8 +268,8 @@ form.addEventListener("submit", async (event) => {
     if (!data.icon.trim()) delete data.icon;
 
     try {
-        const response = await fetch("/api/services", {
-            method: "POST",
+        const response = await fetch(editingPath ? `/api/services/${encodeURIComponent(editingPath)}` : "/api/services", {
+            method: editingPath ? "PUT" : "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         });
