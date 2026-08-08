@@ -4,6 +4,8 @@ const addButton = document.querySelector("#add-service");
 const cancelButton = document.querySelector("#cancel-service");
 const closeButton = document.querySelector("#close-service");
 const errorBox = document.querySelector("#form-error");
+const nameInput = form.elements.name;
+const pathInput = form.elements.path;
 const iconInput = document.querySelector("#service-icon-input");
 const iconPreview = document.querySelector("#icon-preview");
 const iconGrid = document.querySelector("#unicode-icon-grid");
@@ -25,6 +27,22 @@ const iconRanges = [
 ];
 const unicodeIcons = buildIconSet();
 let iconPage = 0;
+let pathEdited = false;
+
+function slugify(value) {
+    return value
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+function updatePathFromName() {
+    if (!pathEdited) {
+        pathInput.value = slugify(nameInput.value);
+    }
+}
 
 function updateIconPreview() {
     iconPreview.textContent = iconInput.value.trim() || defaultIcon;
@@ -106,6 +124,7 @@ function clearError() {
 function closeDialog() {
     dialog.close();
     form.reset();
+    pathEdited = false;
     updateIconPreview();
     clearError();
 }
@@ -113,11 +132,16 @@ function closeDialog() {
 addButton.addEventListener("click", () => {
     clearError();
     dialog.showModal();
-    form.elements.name.focus();
+    nameInput.focus();
 });
 
 cancelButton.addEventListener("click", closeDialog);
 closeButton.addEventListener("click", closeDialog);
+nameInput.addEventListener("input", updatePathFromName);
+pathInput.addEventListener("input", () => {
+    pathEdited = true;
+    pathInput.value = slugify(pathInput.value);
+});
 iconInput.addEventListener("input", updateIconPreview);
 iconSearch.addEventListener("input", () => {
     iconPage = 0;
