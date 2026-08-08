@@ -1,0 +1,13 @@
+{
+  "title": "Home Server",
+  "subtitle": "Services and devices on your network",
+  "services": [
+    {
+      "name": "Example Service",
+      "path": "example",
+      "port": 8080,
+      "description": "Example local service",
+      "icon": "◈"
+    }
+  ]
+}

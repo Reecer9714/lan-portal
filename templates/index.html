@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0b1120">
+    <title>{{TITLE}}</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/app.js" defer></script>
+</head>
+<body>
+    <main>
+        <header class="page-header">
+            <div class="header-copy">
+                <div class="eyebrow">LAN Portal</div>
+                <h1>{{TITLE}}</h1>
+                <p class="subtitle">{{SUBTITLE}}</p>
+            </div>
+            <button class="add-service-button" id="add-service" type="button">
+                <span aria-hidden="true">+</span>
+                Add Service
+            </button>
+        </header>
+
+        <section class="services" aria-label="Services">
+            {{SERVICES}}
+        </section>
+
+        <footer>Local services directory</footer>
+    </main>
+
+    <dialog id="service-dialog" class="service-dialog">
+        <form id="service-form" class="service-form">
+            <div class="dialog-header">
+                <div>
+                    <div class="eyebrow">New Shortcut</div>
+                    <h2>Add Service</h2>
+                </div>
+                <button class="icon-button" id="close-service" type="button" aria-label="Close">×</button>
+            </div>
+
+            <div class="form-grid">
+                <label class="form-field">
+                    <span>Name</span>
+                    <input name="name" required autocomplete="off" placeholder="Jellyseerr">
+                </label>
+
+                <label class="form-field">
+                    <span>Path</span>
+                    <input name="path" required autocomplete="off" placeholder="jellyseerr" pattern="[A-Za-z0-9-]+">
+                    <small>Used as /jellyseerr</small>
+                </label>
+
+                <label class="form-field">
+                    <span>Host</span>
+                    <input name="host" autocomplete="off" placeholder="Leave blank for this server">
+                    <small>Optional IP address or hostname</small>
+                </label>
+
+                <label class="form-field">
+                    <span>Port</span>
+                    <input name="port" type="number" min="1" max="65535" required placeholder="5055">
+                </label>
+
+                <label class="form-field form-field-wide">
+                    <span>Description</span>
+                    <input name="description" autocomplete="off" placeholder="Media requests">
+                </label>
+
+                <label class="form-field">
+                    <span>Icon</span>
+                    <input name="icon" autocomplete="off" placeholder="🎟️">
+                </label>
+
+                <label class="form-field">
+                    <span>Protocol</span>
+                    <select name="scheme">
+                        <option value="http">HTTP</option>
+                        <option value="https">HTTPS</option>
+                    </select>
+                </label>
+            </div>
+
+            <div id="form-error" class="form-error" role="alert" hidden></div>
+
+            <div class="dialog-actions">
+                <button class="secondary-button" id="cancel-service" type="button">Cancel</button>
+                <button class="primary-button" type="submit">Add Service</button>
+            </div>
+        </form>
+    </dialog>
+</body>
+</html>

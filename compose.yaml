@@ -1,0 +1,16 @@
+services:
+  portal:
+    image: python:3.13-alpine
+    container_name: lan-portal
+    restart: unless-stopped
+    ports:
+      - "${PORTAL_PORT:-8088}:8080"
+    volumes:
+      - ./portal.py:/app/portal.py:ro
+      - ./services.json:/app/services.json
+      - ./templates:/app/templates:ro
+      - ./static:/app/static:ro
+    working_dir: /app
+    command:
+      - python
+      - /app/portal.py
