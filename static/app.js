@@ -419,8 +419,8 @@ async function editService(path, shell) {
     }
 }
 
-addButton.addEventListener("click", openAddDialog);
-editModeButton.addEventListener("click", () => setEditMode(!editMode));
+if (addButton) addButton.addEventListener("click", openAddDialog);
+if (editModeButton) editModeButton.addEventListener("click", () => setEditMode(!editMode));
 
 cancelButton.addEventListener("click", closeDialog);
 closeButton.addEventListener("click", closeDialog);

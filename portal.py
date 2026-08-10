@@ -1,14 +1,17 @@
 import json
+import hashlib
+import hmac
 import mimetypes
 import os
 import re
 import socket
+from http.cookies import SimpleCookie
 from html import escape
 from html.parser import HTMLParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import parse_qs, unquote, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 CONFIG_PATH = Path(os.environ.get("CONFIG_PATH", "/app/services.json"))
@@ -16,6 +19,8 @@ TEMPLATE_PATH = Path(os.environ.get("TEMPLATE_PATH", "/app/templates/index.html"
 STATIC_PATH = Path(os.environ.get("STATIC_PATH", "/app/static"))
 FAVICON_CACHE_PATH = Path(os.environ.get("FAVICON_CACHE_PATH", "/app/favicons"))
 PORT = int(os.environ.get("PORT", "8080"))
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+ADMIN_COOKIE_NAME = "lan_portal_admin"
 PATH_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
 FAVICON_MAX_BYTES = 262144
 FAVICON_TIMEOUT_SECONDS = 4
@@ -174,7 +179,7 @@ def cache_service_favicon(service, request_host):
     return False
 
 
-def render_service_cards(services):
+def render_service_cards(services, is_admin=True):
     cards = []
     for service in services:
         name = escape(str(service["name"]))
@@ -186,16 +191,8 @@ def render_service_cards(services):
         if favicon:
             icon_html = f'<img src="/favicons/{escape(favicon)}" alt="" loading="lazy">'
         service_json = escape(json.dumps(service, ensure_ascii=False), quote=True)
-        cards.append(f"""
-        <article class="service-card-shell" data-service="{service_json}">
+        admin_controls = f"""
             <button class="service-drag-handle" type="button" aria-label="Drag {name} to reorder" title="Drag to reorder"></button>
-            <a class="service-card" href="/{path}" data-service-path="{path}" data-service="{service_json}">
-                <div class="service-icon">{icon_html}</div>
-                <div class="service-content">
-                    <div class="service-name">{name}</div>
-                    <div class="service-description">{description}</div>
-                </div>
-            </a>
             <div class="service-edit-controls" aria-label="Edit controls for {name}">
                 <button class="service-menu-button" type="button" data-service-path="{path}" aria-label="More reorder actions for {name}" aria-expanded="false">&#8942;</button>
                 <div class="service-action-menu" role="menu">
@@ -206,16 +203,32 @@ def render_service_cards(services):
                 </div>
                 <button class="service-edit-button" type="button" data-service-path="{path}" aria-label="Edit {name}">Edit</button>
             </div>
+        """ if is_admin else ""
+        cards.append(f"""
+        <article class="service-card-shell" data-service="{service_json}">
+            <a class="service-card" href="/{path}" data-service-path="{path}" data-service="{service_json}">
+                <div class="service-icon">{icon_html}</div>
+                <div class="service-content">
+                    <div class="service-name">{name}</div>
+                    <div class="service-description">{description}</div>
+                </div>
+            </a>
+            {admin_controls}
         </article>
         """)
     return "\n".join(cards)
 
 
-def render_dashboard(config):
+def render_dashboard(config, is_admin=True):
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     title = escape(str(config.get("title", "Home Server")))
     subtitle = escape(str(config.get("subtitle", "Services and devices on your network")))
-    services_html = render_service_cards(config.get("services", []))
+    services_html = render_service_cards(config.get("services", []), is_admin)
+    admin_actions = """<button class="secondary-button edit-mode-button" id="edit-mode" type="button" aria-pressed="false">Edit Mode</button>
+                <button class="add-service-button" id="add-service" type="button">
+                    <span class="button-icon" aria-hidden="true">+</span>
+                    Add Service
+                </button>""" if is_admin else ""
     asset_version = str(max((STATIC_PATH / "app.js").stat().st_mtime_ns, (STATIC_PATH / "style.css").stat().st_mtime_ns))
     static_assets = (
         f'<link rel="stylesheet" href="/static/style.css?v={asset_version}">\n'
@@ -226,6 +239,7 @@ def render_dashboard(config):
         .replace("{{TITLE}}", title)
         .replace("{{SUBTITLE}}", subtitle)
         .replace("{{SERVICES}}", services_html)
+        .replace("{{ADMIN_ACTIONS}}", admin_actions)
         .replace("{{STATIC_ASSETS}}", static_assets)
     )
 
@@ -280,9 +294,36 @@ def validate_service(payload, existing_services, original_path=None):
 
 
 class PortalHandler(BaseHTTPRequestHandler):
+    def admin_token(self):
+        return hmac.new(ADMIN_PASSWORD.encode("utf-8"), b"lan-portal-admin", hashlib.sha256).hexdigest()
+
+    def is_admin(self):
+        if not ADMIN_PASSWORD:
+            return True
+        cookie = SimpleCookie(self.headers.get("Cookie", ""))
+        supplied = cookie.get(ADMIN_COOKIE_NAME)
+        return bool(supplied and hmac.compare_digest(supplied.value, self.admin_token()))
+
+    def require_admin(self):
+        if self.is_admin():
+            return True
+        self.send_json(403, {"error": "Admin access is required. Open /?admin=PASSWORD first."})
+        return False
+
     def do_GET(self):
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/":
+            supplied_password = parse_qs(parsed.query).get("admin", [None])[0]
+            if ADMIN_PASSWORD and supplied_password is not None:
+                if hmac.compare_digest(supplied_password, ADMIN_PASSWORD):
+                    self.send_response(303)
+                    self.send_header("Location", "/")
+                    self.send_header("Set-Cookie", f"{ADMIN_COOKIE_NAME}={self.admin_token()}; Path=/; HttpOnly; SameSite=Strict")
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    return
+                log("WARN", f"Rejected admin unlock from {self.client_address[0]}")
             return self.serve_dashboard()
         if path.startswith("/static/"):
             return self.serve_file(path, "/static/", STATIC_PATH, "no-cache")
@@ -294,6 +335,8 @@ class PortalHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path.startswith("/api/services") and not self.require_admin():
+            return
         if path == "/api/services":
             return self.add_service()
         if path == "/api/services/reorder":
@@ -305,13 +348,15 @@ class PortalHandler(BaseHTTPRequestHandler):
 
     def do_PUT(self):
         path = urlparse(self.path).path
+        if path.startswith("/api/services/") and not self.require_admin():
+            return
         if path.startswith("/api/services/"):
             return self.update_service(unquote(path.removeprefix("/api/services/")))
         self.send_json(404, {"error": "Endpoint not found."})
 
     def serve_dashboard(self):
         try:
-            body = render_dashboard(load_config()).encode("utf-8")
+            body = render_dashboard(load_config(), self.is_admin()).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))

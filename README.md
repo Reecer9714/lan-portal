@@ -71,6 +71,14 @@ Use **Add Service** on the dashboard to add entries without manually editing JSO
 
 Use **Fetch favicon** while editing a service to fetch the target favicon from its homepage or `/favicon.ico`. Cached icons are stored in `favicons/`; the configured Unicode icon is still used when no favicon can be found.
 
+To put management actions behind a simple password, set `ADMIN_PASSWORD` in the environment (or in a local `.env` file used by Compose), restart the container, then open:
+
+```text
+http://SERVER-IP:8088/?admin=YOUR_PASSWORD
+```
+
+A successful unlock redirects back to `/` and remembers admin access in an HTTP-only browser cookie. Other visitors can use service shortcuts but do not see the add, edit, or reorder controls. Leaving `ADMIN_PASSWORD` empty preserves the unrestricted behavior.
+
 ## Security
 
-LAN Portal is intended for trusted local networks. The management API currently has no authentication. Do not expose it directly to the public internet without adding authentication and other appropriate protections.
+LAN Portal is intended for trusted local networks. The optional admin password is a lightweight guard against accidental changes, not internet-grade authentication. Query strings may be retained in browser history or access logs, so do not reuse an important password. Do not expose the portal directly to the public internet without stronger authentication and other appropriate protections.
