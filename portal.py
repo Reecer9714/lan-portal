@@ -5,6 +5,7 @@ import mimetypes
 import os
 import re
 import socket
+import time
 from http.cookies import SimpleCookie
 from html import escape
 from html.parser import HTMLParser
@@ -21,6 +22,7 @@ FAVICON_CACHE_PATH = Path(os.environ.get("FAVICON_CACHE_PATH", "/app/favicons"))
 PORT = int(os.environ.get("PORT", "8080"))
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 ADMIN_COOKIE_NAME = "lan_portal_admin"
+ADMIN_SESSION_SECONDS = max(1, int(os.environ.get("ADMIN_SESSION_MINUTES", "60"))) * 60
 PATH_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
 FAVICON_MAX_BYTES = 262144
 FAVICON_TIMEOUT_SECONDS = 4
@@ -294,15 +296,31 @@ def validate_service(payload, existing_services, original_path=None):
 
 
 class PortalHandler(BaseHTTPRequestHandler):
-    def admin_token(self):
-        return hmac.new(ADMIN_PASSWORD.encode("utf-8"), b"lan-portal-admin", hashlib.sha256).hexdigest()
+    def admin_token(self, issued_at=None):
+        issued_at = int(time.time()) if issued_at is None else issued_at
+        timestamp = str(issued_at)
+        signature = hmac.new(
+            ADMIN_PASSWORD.encode("utf-8"),
+            f"lan-portal-admin:{timestamp}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return f"{timestamp}.{signature}"
 
     def is_admin(self):
         if not ADMIN_PASSWORD:
             return True
         cookie = SimpleCookie(self.headers.get("Cookie", ""))
         supplied = cookie.get(ADMIN_COOKIE_NAME)
-        return bool(supplied and hmac.compare_digest(supplied.value, self.admin_token()))
+        if not supplied:
+            return False
+        try:
+            timestamp, signature = supplied.value.split(".", 1)
+            issued_at = int(timestamp)
+        except (TypeError, ValueError):
+            return False
+        age = int(time.time()) - issued_at
+        expected = self.admin_token(issued_at).split(".", 1)[1]
+        return 0 <= age < ADMIN_SESSION_SECONDS and hmac.compare_digest(signature, expected)
 
     def require_admin(self):
         if self.is_admin():
@@ -319,7 +337,10 @@ class PortalHandler(BaseHTTPRequestHandler):
                 if hmac.compare_digest(supplied_password, ADMIN_PASSWORD):
                     self.send_response(303)
                     self.send_header("Location", "/")
-                    self.send_header("Set-Cookie", f"{ADMIN_COOKIE_NAME}={self.admin_token()}; Path=/; HttpOnly; SameSite=Strict")
+                    self.send_header(
+                        "Set-Cookie",
+                        f"{ADMIN_COOKIE_NAME}={self.admin_token()}; Path=/; Max-Age={ADMIN_SESSION_SECONDS}; HttpOnly; SameSite=Strict",
+                    )
                     self.send_header("Cache-Control", "no-store")
                     self.end_headers()
                     return

@@ -77,7 +77,7 @@ To put management actions behind a simple password, set `ADMIN_PASSWORD` in the 
 http://SERVER-IP:8088/?admin=YOUR_PASSWORD
 ```
 
-A successful unlock redirects back to `/` and remembers admin access in an HTTP-only browser cookie. Other visitors can use service shortcuts but do not see the add, edit, or reorder controls. Leaving `ADMIN_PASSWORD` empty preserves the unrestricted behavior.
+A successful unlock redirects back to `/` and remembers admin access in an HTTP-only browser cookie for one hour. Other visitors can use service shortcuts but do not see the add, edit, or reorder controls. Set `ADMIN_SESSION_MINUTES=30` to use a 30-minute session instead; leaving `ADMIN_PASSWORD` empty preserves the unrestricted behavior.
 
 ## Security
 

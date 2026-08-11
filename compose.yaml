@@ -5,6 +5,7 @@ services:
     restart: unless-stopped
     environment:
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:-}"
+      ADMIN_SESSION_MINUTES: "${ADMIN_SESSION_MINUTES:-60}"
     ports:
       - "${PORTAL_PORT:-8088}:8080"
     volumes:
