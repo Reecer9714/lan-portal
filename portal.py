@@ -208,7 +208,7 @@ def render_service_cards(services, is_admin=True):
         """ if is_admin else ""
         cards.append(f"""
         <article class="service-card-shell" data-service="{service_json}">
-            <a class="service-card" href="/{path}" data-service-path="{path}" data-service="{service_json}">
+            <a class="service-card" href="/{path}" rel="noreferrer" data-service-path="{path}" data-service="{service_json}">
                 <div class="service-icon">{icon_html}</div>
                 <div class="service-content">
                     <div class="service-name">{name}</div>
@@ -590,6 +590,7 @@ class PortalHandler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", target)
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Referrer-Policy", "no-referrer")
             self.end_headers()
             return
         log("WARN", f"Shortcut not found: /{requested_path}")
